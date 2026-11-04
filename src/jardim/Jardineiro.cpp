@@ -1,0 +1,158 @@
+#include "Jardineiro.h"
+#include "Jardim.h"
+#include "Ferramenta.h"
+#include <iostream>
+#include "Settings.h"
+
+using namespace std;
+
+Jardineiro::Jardineiro() : ferramentaNaMao(nullptr),
+                           movimentosRestantes(Settings::Jardineiro::max_movimentos),
+                           colheitasRestantes(Settings::Jardineiro::max_colheitas),
+                           plantasRestantes(Settings::Jardineiro::max_plantacoes),
+                           entradasSaidasRestantes(Settings::Jardineiro::max_entradas_saidas),
+                           localAtual(nullptr),
+                           dentroDoJardim(false)
+{}
+
+Jardineiro::Jardineiro(const Jardineiro& outro) {
+    *this = outro;
+}
+
+Jardineiro::~Jardineiro() {
+    delete ferramentaNaMao;
+
+    for (Ferramenta* f : ferramentas) {
+        delete f;
+    }
+    ferramentas.clear();
+
+}
+
+Jardineiro &Jardineiro::operator=(const Jardineiro &outro) {
+    movimentosRestantes = outro.movimentosRestantes;
+    colheitasRestantes = outro.colheitasRestantes;
+    plantasRestantes = outro.plantasRestantes;
+    entradasSaidasRestantes = outro.entradasSaidasRestantes;
+
+    for (Ferramenta* f : outro.ferramentas) {
+        if (f != nullptr) {
+            Ferramenta* temp = f->clone();
+            ferramentas.push_back(temp);
+        }
+    }
+
+    if (outro.ferramentaNaMao != nullptr)
+        ferramentaNaMao = outro.ferramentaNaMao->clone();
+    else
+        ferramentaNaMao = nullptr;
+    return *this;
+}
+
+// --- Ferramentas ---
+void Jardineiro::adicionarFerramenta(Ferramenta* f) {
+    if (f!=nullptr) ferramentas.push_back(f);
+}
+
+
+void Jardineiro::pegaFerramenta(int num) {
+    largaFerramenta();
+    Ferramenta* f;
+
+    for (auto it = ferramentas.begin(); it != ferramentas.end(); ++it) {
+        f = *it;
+        if (f->getNumSerie() == num) {
+            ferramentas.erase(it); // Remove do vetor, mas nao apaga o objeto da memoria
+            ferramentaNaMao = f;
+            break;
+        }
+    }
+
+    // Nao encontrou a ferramenta
+    if (ferramentaNaMao == nullptr)
+        throw std::runtime_error("Essa ferramenta nao esta no inventario");
+}
+
+void Jardineiro::pegaFerramenta(Jardim* j) {
+    Ferramenta* f = j->apanharFerramenta(localAtual);
+
+    if (f != nullptr) {
+        adicionarFerramenta(f);
+    }
+}
+
+
+void Jardineiro::largaFerramenta() {
+    if (ferramentaNaMao == nullptr) {
+        return;
+    }
+    ferramentas.push_back(ferramentaNaMao);
+    ferramentaNaMao = nullptr;
+}
+
+Ferramenta* Jardineiro::getFerramentaNaMao() const {
+    return ferramentaNaMao;
+}
+
+// --- Ações ---
+void Jardineiro::aplicarFerramenta(Jardim* j) {
+    bool acabou = false;
+    if (ferramentaNaMao == nullptr)
+        return;
+    acabou = ferramentaNaMao->aplica(localAtual,j);
+    std::cout << "A ferramenta " << ferramentaNaMao->getLetra() << " | " << ferramentaNaMao->getNumSerie() << " foi aplicada" << endl;
+    if (acabou){
+        std::cout << ferramentaNaMao->getLetra() << " | " << ferramentaNaMao->getNumSerie()  << " acabou." << endl;
+        delete ferramentaNaMao;
+        ferramentaNaMao = nullptr;
+    }
+}
+
+void Jardineiro::resetTurno() {
+    movimentosRestantes = Settings::Jardineiro::max_movimentos;
+    colheitasRestantes = Settings::Jardineiro::max_colheitas;
+    plantasRestantes = Settings::Jardineiro::max_plantacoes;
+    entradasSaidasRestantes = Settings::Jardineiro::max_entradas_saidas;
+}
+
+// --- Informação ---
+string Jardineiro::getInfo() const {
+    string info = "Jardineiro ";
+    info += (dentroDoJardim ? "está no jardim" : "está fora do jardim");
+    return info;
+}
+
+void Jardineiro::move(BocadoSolo* b) {
+    if (dentroDoJardim && localAtual != nullptr) {
+        if (movimentosRestantes <= 0)
+            throw std::runtime_error("O jardineiro nao se pode mover mais este turno.");
+
+        movimentosRestantes--;
+        localAtual->removeJardineiro();
+
+    }else {
+        if (entradasSaidasRestantes <= 0)
+            throw std::runtime_error("O jardineiro nao pode entrar/sair mais este turno.");
+
+        entradasSaidasRestantes--;
+    }
+
+    localAtual = b;
+    b->colocaJardineiro();
+    dentroDoJardim = true;
+}
+
+void Jardineiro::sai() {
+    if (entradasSaidasRestantes <= 0)
+        throw std::runtime_error("O jardineiro ja nao pode sair. Tem que avancar o turno");
+
+    if (localAtual!=nullptr) {
+        localAtual->removeJardineiro();
+        entradasSaidasRestantes--;
+    }
+
+    localAtual = nullptr;
+    dentroDoJardim=false;
+}
+
+
